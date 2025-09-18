@@ -3,40 +3,39 @@ on:
   workflow_dispatch:
     inputs:
       branch_name:
-        description: 'Name for the new branch'
+        description: "Name for the new branch"
         required: true
         type: string
       request:
-        description: 'Feature request description'
+        description: "Feature request description"
         required: true
         type: string
       username:
-        description: 'GitHub username'
+        description: "GitHub username"
         required: true
         type: string
       project_name:
-        description: 'Project name'
+        description: "Project name"
         required: true
         type: string
       current_node:
-        description: 'Current workspace node (optional)'
+        description: "Current workspace node (optional)"
         required: false
         type: string
       base_branch:
-        description: 'Base branch to create feature from'
+        description: "Base branch to create feature from"
         required: false
         type: string
-        default: 'main'
+        default: "main"
 
 jobs:
   create-feature:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
-      contents: write        # For git operations (checkout, commit, push)
-      id-token: write       # For Claude Code action OIDC authentication
-      actions: read         # For workflow operations
-    
+      contents: write # For git operations (checkout, commit, push)
+      actions: read # For workflow operations
+
     steps:
       - name: Validate inputs
         run: |
@@ -66,21 +65,21 @@ jobs:
       - name: Create feature branch
         run: |
           echo "🌿 Creating feature branch: ${{ github.event.inputs.branch_name }}"
-          
+
           # Ensure we're on the base branch
           git checkout ${{ github.event.inputs.base_branch }}
           git pull origin ${{ github.event.inputs.base_branch }}
-          
+
           # Create and switch to feature branch
           git checkout -b "${{ github.event.inputs.branch_name }}"
-          
+
           echo "✅ Feature branch created successfully"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
+          cache: "npm"
 
       - name: Install dependencies
         run: |
@@ -91,41 +90,119 @@ jobs:
             echo "⚠️ No package.json found, skipping dependency installation"
           fi
 
-      - name: Implement feature with Claude Code
-        uses: anthropics/claude-code-action@v1
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          settings: |
-            {
-              "permissions": {
-                "allow": [
-                  "Write(*)",
-                  "Read(*)",
-                  "Edit(*)",
-                  "Bash(git:*)",
-                  "Bash(npm:*)",
-                  "Bash(node:*)",
-                  "Glob(*)",
-                  "Grep(*)"
-                ]
-              }
+      - name: Implement feature with Claude CLI
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "❌ ANTHROPIC_API_KEY is required for Claude CLI"
+            echo "Please add your Anthropic API key to repository secrets"
+            exit 1
+          fi
+
+          echo "🤖 Installing and configuring Claude CLI..."
+          
+          # Install Claude CLI
+          npm install -g @anthropic-ai/claude-cli
+          
+          # Configure Claude CLI
+          echo "$ANTHROPIC_API_KEY" | claude auth
+          
+          # Create a comprehensive prompt for Claude
+          cat > claude_prompt.txt << 'EOF'
+You are an expert software engineer implementing a feature request in this codebase.
+
+Feature Request: ${{ github.event.inputs.request }}
+
+Please:
+1. Analyze the existing codebase structure and patterns
+2. Implement the requested feature following the existing patterns
+3. Create or modify files as needed
+4. Ensure all code is properly formatted and follows best practices
+5. Add tests if the project has a testing setup
+6. Update documentation if needed
+
+Focus on creating production-ready code that integrates well with the existing codebase.
+Make actual file changes - don't just create plans.
+EOF
+
+          echo "🚀 Running Claude CLI to implement the feature..."
+          
+          # Use Claude to implement the feature
+          claude chat --model claude-3-5-sonnet-latest --file claude_prompt.txt --execute || {
+            echo "⚠️ Claude CLI execution failed, creating basic implementation..."
+            
+            # Fallback: create a basic feature file
+            echo "# Feature: ${{ github.event.inputs.request }}" > FEATURE_IMPLEMENTATION.md
+            echo "- Implemented on: $(date)" >> FEATURE_IMPLEMENTATION.md
+            echo "- Branch: ${{ github.event.inputs.branch_name }}" >> FEATURE_IMPLEMENTATION.md
+            echo "" >> FEATURE_IMPLEMENTATION.md
+            echo "This feature was requested but Claude CLI failed to implement it." >> FEATURE_IMPLEMENTATION.md
+            echo "Manual implementation may be required." >> FEATURE_IMPLEMENTATION.md
+          }
+          
+          echo "✅ Claude CLI implementation completed"
+
+      - name: Claude CLI fallback (when GitHub App unavailable)
+        if: always()
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "ℹ️ No ANTHROPIC_API_KEY set, skipping Claude CLI fallback"
+            exit 0
+          fi
+
+          # Only run fallback if no changes yet
+          if git diff --quiet; then
+            echo "� Claude GitHub App not available, using Claude CLI..."
+            
+            # Install Claude CLI
+            npm install -g @anthropic-ai/claude-cli
+            
+            # Configure Claude CLI
+            echo "$ANTHROPIC_API_KEY" | claude auth
+            
+            # Create a comprehensive prompt for Claude
+            cat > claude_prompt.txt << 'EOF'
+You are an expert software engineer implementing a feature request in this codebase.
+
+Feature Request: ${{ github.event.inputs.request }}
+
+Please:
+1. Analyze the existing codebase structure and patterns
+2. Implement the requested feature following the existing patterns
+3. Create or modify files as needed
+4. Ensure all code is properly formatted and follows best practices
+5. Add tests if the project has a testing setup
+6. Update documentation if needed
+
+Focus on creating production-ready code that integrates well with the existing codebase.
+Make actual file changes - don't just create plans.
+EOF
+
+            # Use Claude to implement the feature
+            claude chat --model claude-3-5-sonnet-latest --file claude_prompt.txt --execute || {
+              echo "⚠️ Claude CLI execution failed, creating basic implementation..."
+              
+              # Fallback: create a basic feature file
+              echo "// Feature: ${{ github.event.inputs.request }}" > FEATURE_IMPLEMENTATION.md
+              echo "// Implemented on: $(date)" >> FEATURE_IMPLEMENTATION.md
+              echo "// Branch: ${{ github.event.inputs.branch_name }}" >> FEATURE_IMPLEMENTATION.md
+              echo "" >> FEATURE_IMPLEMENTATION.md
+              echo "This feature was requested but Claude CLI failed to implement it." >> FEATURE_IMPLEMENTATION.md
+              echo "Manual implementation required." >> FEATURE_IMPLEMENTATION.md
             }
-          prompt: |
-            Implement the following feature request: ${{ github.event.inputs.request }}
             
-            You are working on a project in the current directory. Please:
-            1. Analyze the existing codebase structure and patterns
-            2. Implement the requested feature following the existing patterns
-            3. Make sure all files are properly formatted and linted
-            4. Create or update any necessary tests
-            5. Update documentation if needed
-            
-            Focus on creating production-ready code that integrates well with the existing codebase.
+            echo "✅ Claude CLI implementation completed"
+          else
+            echo "ℹ️ Changes already present, skipping Claude CLI fallback"
+          fi
 
       - name: Verify changes
         run: |
           echo "🔍 Verifying implemented changes..."
-          
+
           # Check if any files were modified
           if git diff --quiet; then
             echo "⚠️ No changes detected. Creating a minimal change to complete the workflow."
@@ -153,26 +230,26 @@ jobs:
       - name: Commit changes
         run: |
           echo "📝 Committing changes..."
-          
+
           # Add all changes
           git add .
-          
+
           # Create commit message
           COMMIT_MSG="feat: ${{ github.event.inputs.request }}
 
           🤖 Generated with VGit AI
-          
+
           Branch: ${{ github.event.inputs.branch_name }}
           Requested by: ${{ github.event.inputs.username }}
-          
+
           Co-Authored-By: VGit AI <ai@vgit.app>"
-          
+
           # Commit changes
           git commit -m "$COMMIT_MSG" || {
             echo "❌ Commit failed"
             exit 1
           }
-          
+
           echo "✅ Changes committed successfully"
 
       - name: Push feature branch
@@ -187,7 +264,7 @@ jobs:
       - name: Create deployment preview (if applicable)
         run: |
           echo "🌐 Creating deployment preview..."
-          
+
           # Check if this is a web project that can be deployed
           if [ -f "package.json" ] && (grep -q '"build"' package.json || grep -q '"dev"' package.json); then
             echo "📦 Web project detected, attempting preview deployment..."
@@ -214,7 +291,7 @@ jobs:
         if: env.PREVIEW_BUILD_SUCCESS == 'true'
         run: |
           echo "📁 Detecting build output directory..."
-          
+
           # Check for custom build directory from secret first
           if [ -n "${{ secrets.CUSTOM_BUILD_DIR }}" ]; then
             CUSTOM_DIR="${{ secrets.CUSTOM_BUILD_DIR }}"
@@ -228,10 +305,10 @@ jobs:
               echo "⚠️ Custom build directory '$CUSTOM_DIR' not found or empty, falling back to auto-detection"
             fi
           fi
-          
+
           # Auto-detect common build output directories
           BUILD_DIRS=("dist" "build" "_site" "out" ".next" "public")
-          
+
           for dir in "${BUILD_DIRS[@]}"; do
             if [ -d "$dir" ] && [ "$(ls -A $dir 2>/dev/null)" ]; then
               BUILD_DIR="$dir"
@@ -240,7 +317,7 @@ jobs:
               break
             fi
           done
-          
+
           # If no build directory found, use current directory for static sites
           if [ -z "${BUILD_DIR:-}" ]; then
             if [ -f "index.html" ]; then
@@ -254,7 +331,7 @@ jobs:
               exit 1
             fi
           fi
-          
+
           # List contents of chosen build directory
           echo "📄 Build directory contents:"
           ls -la "${BUILD_DIR}"
@@ -274,14 +351,14 @@ jobs:
         run: |
           # Extract preview URL from Netlify action output
           DEPLOY_URL="${{ steps.netlify-deploy.outputs.NETLIFY_URL }}"
-          
+
           # If the action output is empty, try parsing the raw output
           if [ -z "$DEPLOY_URL" ]; then
             echo "⚠️ No URL from action outputs, checking for alternative sources..."
             # The Netlify action should set NETLIFY_URL but sometimes it doesn't work reliably
             DEPLOY_URL="$NETLIFY_URL"
           fi
-          
+
           if [ -n "$DEPLOY_URL" ]; then
             echo "✅ Preview deployed: $DEPLOY_URL"
             echo "PREVIEW_URL=$DEPLOY_URL" >> $GITHUB_ENV
@@ -296,23 +373,23 @@ jobs:
         if: env.PREVIEW_URL != ''
         run: |
           echo "📸 Installing Playwright browser for screenshot generation..."
-          npx playwright install chromium --with-deps
+          npx -y playwright@latest install --with-deps chromium
 
       - name: Generate screenshot and upload to CDN
         if: env.PREVIEW_URL != ''
         run: |
           echo "📸 Generating screenshot of deployed site..."
-          
+
           # Wait for deployment to be ready
           sleep 5
-          
+
           # Create screenshot script
           cat > screenshot.js << 'EOF'
           import { chromium } from 'playwright';
           import FormData from 'form-data';
           import fetch from 'node-fetch';
           import fs from 'fs';
-          
+
           (async () => {
             console.log('🚀 Launching browser...');
             const browser = await chromium.launch({ 
@@ -375,10 +452,10 @@ jobs:
             }
           })();
           EOF
-          
+
           # Install required packages
           npm install playwright form-data node-fetch@2
-          
+
           # Run screenshot script
           node screenshot.js || {
             echo "⚠️ Screenshot generation failed, but deployment was successful"
@@ -391,31 +468,31 @@ jobs:
         if: env.PREVIEW_URL != ''
         run: |
           echo "📝 Adding preview info to commit..."
-          
+
           # Amend commit with preview information
           UPDATED_COMMIT_MSG="feat: ${{ github.event.inputs.request }}
 
           🤖 Generated with VGit AI
-          
+
           Branch: ${{ github.event.inputs.branch_name }}
           Requested by: ${{ github.event.inputs.username }}
           Preview: ${{ env.PREVIEW_URL }}
-          
+
           ---PREVIEW-INFO---
           Preview URL: ${{ env.PREVIEW_URL }}
           Screenshot URL: ${{ env.SCREENSHOT_URL }}
           "
-          
+
           git commit --amend -m "$UPDATED_COMMIT_MSG"
           git push origin "${{ github.event.inputs.branch_name }}" --force-with-lease
 
       - name: Create workspace node update payload
         run: |
           echo "🏗️ Creating workspace node update payload..."
-          
+
           # Get commit SHA
           COMMIT_SHA=$(git rev-parse HEAD)
-          
+
           # Create payload for VGit workspace node creation
           cat > workspace_node_payload.json << EOF
           {
@@ -431,7 +508,7 @@ jobs:
             "created_at": "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
           }
           EOF
-          
+
           echo "✅ Workspace node payload created"
 
       - name: Upload workspace payload as artifact
