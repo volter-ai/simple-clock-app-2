@@ -3,27 +3,27 @@ on:
   workflow_dispatch:
     inputs:
       branch_name:
-        description: 'Branch to deploy'
+        description: "Branch to deploy"
         required: true
         type: string
       deployment_type:
-        description: 'Type of deployment'
+        description: "Type of deployment"
         required: false
         type: choice
-        default: 'preview'
+        default: "preview"
         options:
-          - 'preview'
-          - 'production'
+          - "preview"
+          - "production"
       username:
-        description: 'GitHub username'
+        description: "GitHub username"
         required: true
         type: string
       project_name:
-        description: 'Project name'
+        description: "Project name"
         required: true
         type: string
       force_rebuild:
-        description: 'Force rebuild even if no changes'
+        description: "Force rebuild even if no changes"
         required: false
         type: boolean
         default: false
@@ -32,7 +32,7 @@ jobs:
   deploy-preview:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    
+
     steps:
       - name: Validate inputs
         run: |
@@ -65,7 +65,7 @@ jobs:
       - name: Detect project type and build configuration
         run: |
           echo "🔍 Detecting project type..."
-          
+
           if [ -f "package.json" ]; then
             echo "📦 Node.js project detected"
             echo "PROJECT_TYPE=nodejs" >> $GITHUB_ENV
@@ -122,8 +122,8 @@ jobs:
         if: env.PROJECT_TYPE == 'nodejs'
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
+          cache: "npm"
 
       - name: Install dependencies
         if: env.PROJECT_TYPE == 'nodejs'
@@ -135,7 +135,7 @@ jobs:
         if: env.PROJECT_TYPE == 'nodejs'
         run: |
           echo "🔧 Running pre-build checks..."
-          
+
           # Run linting if available
           if npm run lint --silent > /dev/null 2>&1; then
             echo "🔍 Running linter..."
@@ -144,7 +144,7 @@ jobs:
               echo "LINT_ISSUES=true" >> $GITHUB_ENV
             }
           fi
-          
+
           # Run type checking if available
           if npm run type-check --silent > /dev/null 2>&1 || npm run tsc --silent > /dev/null 2>&1; then
             echo "📝 Running type checks..."
@@ -168,35 +168,39 @@ jobs:
       - name: Detect build output directory
         run: |
           echo "📁 Detecting build output directory..."
-          
+          BUILD_DIR="dist"  # Default value
+
           # Check for custom build directory from secret first
           if [ -n "${{ secrets.CUSTOM_BUILD_DIR }}" ]; then
             CUSTOM_DIR="${{ secrets.CUSTOM_BUILD_DIR }}"
             if [ -d "$CUSTOM_DIR" ] && [ "$(ls -A $CUSTOM_DIR 2>/dev/null)" ]; then
-              echo "BUILD_DIR=$CUSTOM_DIR" >> $GITHUB_ENV
-              echo "✅ Using custom build directory: $CUSTOM_DIR"
-              ls -la "$CUSTOM_DIR"
+              BUILD_DIR="$CUSTOM_DIR"
+              echo "BUILD_DIR=$BUILD_DIR" >> $GITHUB_ENV
+              echo "✅ Using custom build directory: $BUILD_DIR"
+              ls -la "$BUILD_DIR"
               exit 0
             else
               echo "⚠️ Custom build directory '$CUSTOM_DIR' not found or empty, falling back to auto-detection"
             fi
           fi
-          
+
           # Auto-detect common build output directories
           BUILD_DIRS=("dist" "build" "_site" "out" ".next" "public")
-          
+
           for dir in "${BUILD_DIRS[@]}"; do
             if [ -d "$dir" ] && [ "$(ls -A $dir 2>/dev/null)" ]; then
-              echo "BUILD_DIR=$dir" >> $GITHUB_ENV
-              echo "✅ Build output directory found: $dir"
+              BUILD_DIR="$dir"
+              echo "BUILD_DIR=$BUILD_DIR" >> $GITHUB_ENV
+              echo "✅ Build output directory found: $BUILD_DIR"
               break
             fi
           done
-          
+
           # If no build directory found, use current directory for static sites
-          if [ -z "${BUILD_DIR:-}" ]; then
+          if [ -z "$BUILD_DIR" ]; then
             if [ -f "index.html" ]; then
-              echo "BUILD_DIR=." >> $GITHUB_ENV
+              BUILD_DIR="."
+              echo "BUILD_DIR=$BUILD_DIR" >> $GITHUB_ENV
               echo "✅ Using current directory for static site"
             else
               echo "❌ No build output directory found"
@@ -205,10 +209,10 @@ jobs:
               exit 1
             fi
           fi
-          
+
           # List contents of chosen build directory
           echo "📄 Build directory contents:"
-          ls -la "${BUILD_DIR}"
+          ls -la "$BUILD_DIR"
 
       - name: Install Netlify CLI
         run: |
@@ -226,15 +230,15 @@ jobs:
             echo "Please add your Netlify auth token to repository secrets"
             exit 1
           fi
-          
+
           if [ -z "$NETLIFY_SITE_ID" ]; then
             echo "❌ NETLIFY_SITE_ID secret is not configured"
             echo "Please add your Netlify site ID to repository secrets"
             exit 1
           fi
-          
+
           echo "🚀 Deploying to Netlify..."
-          
+
           # Determine deployment type
           if [ "${{ github.event.inputs.deployment_type }}" = "production" ]; then
             echo "🌟 Deploying to production..."
@@ -249,18 +253,18 @@ jobs:
               exit 1
             }
           fi
-          
+
           echo "✅ Deployment completed successfully"
-          
+
           # Parse deployment output
           DEPLOY_URL=$(echo "$DEPLOY_OUTPUT" | jq -r '.deploy_url // .url // empty')
           DEPLOY_ID=$(echo "$DEPLOY_OUTPUT" | jq -r '.deploy_id // empty')
-          
+
           if [ -n "$DEPLOY_URL" ]; then
             echo "DEPLOY_URL=$DEPLOY_URL" >> $GITHUB_ENV
             echo "🌐 Deployment URL: $DEPLOY_URL"
           fi
-          
+
           if [ -n "$DEPLOY_ID" ]; then
             echo "DEPLOY_ID=$DEPLOY_ID" >> $GITHUB_ENV
             echo "🆔 Deploy ID: $DEPLOY_ID"
@@ -270,13 +274,13 @@ jobs:
         if: env.DEPLOY_URL != ''
         run: |
           echo "🧪 Running smoke tests on deployed site..."
-          
+
           # Wait a moment for deployment to be ready
           sleep 5
-          
+
           # Basic connectivity test
           HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ env.DEPLOY_URL }}" || echo "000")
-          
+
           if [ "$HTTP_STATUS" = "200" ]; then
             echo "✅ Site is accessible (HTTP $HTTP_STATUS)"
             echo "SMOKE_TEST_PASSED=true" >> $GITHUB_ENV
@@ -284,7 +288,7 @@ jobs:
             echo "⚠️ Site returned HTTP $HTTP_STATUS"
             echo "SMOKE_TEST_PASSED=false" >> $GITHUB_ENV
           fi
-          
+
           # Check for basic HTML structure
           if curl -s "${{ env.DEPLOY_URL }}" | grep -q "<html"; then
             echo "✅ Valid HTML structure detected"
@@ -296,17 +300,17 @@ jobs:
         if: env.DEPLOY_URL != '' && env.SMOKE_TEST_PASSED == 'true'
         run: |
           echo "📸 Generating screenshot of deployed site..."
-          
+
           # Install Playwright for screenshots
           npm install -g playwright-cli
           playwright install chromium
-          
+
           # Generate screenshot
           playwright screenshot "${{ env.DEPLOY_URL }}" screenshot.png || {
             echo "⚠️ Failed to generate screenshot"
             exit 0
           }
-          
+
           if [ -f "screenshot.png" ]; then
             echo "✅ Screenshot generated successfully"
             echo "SCREENSHOT_GENERATED=true" >> $GITHUB_ENV
@@ -315,7 +319,7 @@ jobs:
       - name: Create deployment payload
         run: |
           echo "📦 Creating deployment payload..."
-          
+
           # Create payload for VGit
           cat > deployment_payload.json << EOF
           {
@@ -338,7 +342,7 @@ jobs:
             "created_at": "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
           }
           EOF
-          
+
           echo "✅ Deployment payload created"
 
       - name: Upload deployment artifacts
@@ -369,16 +373,16 @@ jobs:
           echo "- Smoke Tests: ${{ env.SMOKE_TEST_PASSED == 'true' }}"
           echo "- Screenshot: ${{ env.SCREENSHOT_GENERATED == 'true' }}"
           echo "- Workflow Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          
+
           if [ "${{ env.LINT_ISSUES }}" = "true" ]; then
             echo ""
             echo "⚠️ Linting issues detected (see build logs)"
           fi
-          
+
           if [ "${{ env.TYPE_ISSUES }}" = "true" ]; then
             echo ""
             echo "⚠️ Type checking issues detected (see build logs)"
           fi
-          
+
           echo ""
           echo "🔗 Access your deployed site: ${{ env.DEPLOY_URL }}"
