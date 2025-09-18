@@ -301,12 +301,11 @@ jobs:
         run: |
           echo "📸 Generating screenshot of deployed site..."
 
-          # Install Playwright for screenshots
-          npm install -g playwright-cli
-          playwright install chromium
+          # Install Playwright and Chromium (with required system deps)
+          npx -y playwright@latest install --with-deps chromium
 
           # Generate screenshot
-          playwright screenshot "${{ env.DEPLOY_URL }}" screenshot.png || {
+          npx -y playwright@latest screenshot "${{ env.DEPLOY_URL }}" screenshot.png || {
             echo "⚠️ Failed to generate screenshot"
             exit 0
           }
