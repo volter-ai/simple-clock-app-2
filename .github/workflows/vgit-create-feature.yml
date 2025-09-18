@@ -101,33 +101,33 @@ jobs:
           fi
 
           echo "🤖 Installing and configuring Claude CLI..."
-          
+
           # Install Claude CLI
           npm install -g @anthropic-ai/claude-cli
-          
+
           # Configure Claude CLI
           echo "$ANTHROPIC_API_KEY" | claude auth
-          
+
           # Create a comprehensive prompt for Claude
           cat > claude_prompt.txt << 'EOF'
-You are an expert software engineer implementing a feature request in this codebase.
+          You are an expert software engineer implementing a feature request in this codebase.
 
-Feature Request: ${{ github.event.inputs.request }}
+          Feature Request: ${{ github.event.inputs.request }}
 
-Please:
-1. Analyze the existing codebase structure and patterns
-2. Implement the requested feature following the existing patterns
-3. Create or modify files as needed
-4. Ensure all code is properly formatted and follows best practices
-5. Add tests if the project has a testing setup
-6. Update documentation if needed
+          Please:
+          1. Analyze the existing codebase structure and patterns
+          2. Implement the requested feature following the existing patterns
+          3. Create or modify files as needed
+          4. Ensure all code is properly formatted and follows best practices
+          5. Add tests if the project has a testing setup
+          6. Update documentation if needed
 
-Focus on creating production-ready code that integrates well with the existing codebase.
-Make actual file changes - don't just create plans.
-EOF
+          Focus on creating production-ready code that integrates well with the existing codebase.
+          Make actual file changes - don't just create plans.
+          EOF
 
           echo "🚀 Running Claude CLI to implement the feature..."
-          
+
           # Use Claude to implement the feature
           claude chat --model claude-3-5-sonnet-latest --file claude_prompt.txt --execute || {
             echo "⚠️ Claude CLI execution failed, creating basic implementation..."
@@ -140,7 +140,7 @@ EOF
             echo "This feature was requested but Claude CLI failed to implement it." >> FEATURE_IMPLEMENTATION.md
             echo "Manual implementation may be required." >> FEATURE_IMPLEMENTATION.md
           }
-          
+
           echo "✅ Claude CLI implementation completed"
 
       - name: Verify changes
@@ -317,7 +317,7 @@ EOF
         if: env.PREVIEW_URL != ''
         run: |
           echo "📸 Installing Playwright browser for screenshot generation..."
-          npx -y playwright@latest install --with-deps chromium
+          npx playwright install chromium --with-deps
 
       - name: Generate screenshot and upload to CDN
         if: env.PREVIEW_URL != ''
