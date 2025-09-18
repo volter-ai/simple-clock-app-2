@@ -1,29 +1,23 @@
 .clock-container {
-  display: flex;
+  background-color: red;
   min-height: 100vh;
-  align-items: center;
+  width: 100%;
+  display: flex;
   justify-content: center;
-  background: linear-gradient(to right bottom, #2c3e50, #3498db);
+  align-items: center;
 }
 
 .clock {
-  background: rgba(255, 255, 255, 0.1);
-  padding: 2rem 4rem;
-  border-radius: 1rem;
-  backdrop-filter: blur(10px);
-  box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+  color: white;
+  text-align: center;
 }
 
 .clock h1 {
   font-size: 4rem;
   margin: 0;
-  color: white;
-  font-family: monospace;
 }
 
 .clock p {
   font-size: 1.5rem;
-  margin: 1rem 0 0;
-  color: rgba(255, 255, 255, 0.8);
-  text-align: center;
+  margin: 0.5rem 0 0 0;
 }
