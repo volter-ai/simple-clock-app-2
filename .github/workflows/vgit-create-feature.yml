@@ -90,7 +90,7 @@ jobs:
             echo "⚠️ No package.json found, skipping dependency installation"
           fi
 
-    - name: Implement feature with Claude (SDK)
+      - name: Implement feature with Claude (SDK)
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
@@ -103,10 +103,10 @@ jobs:
           npm install anthropic@latest
 
           echo "🧠 Running Anthropic to propose and apply changes..."
-      cat > apply_feature.mjs << 'EOF'
-      import fs from 'node:fs';
-      import path from 'node:path';
-      import { Anthropic } from 'anthropic';
+          cat > apply_feature.mjs << 'EOF'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          import { Anthropic } from 'anthropic';
 
           const FEATURE = process.env.FEATURE_REQUEST || '';
           if (!FEATURE) {
