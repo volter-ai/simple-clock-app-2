@@ -99,14 +99,14 @@ jobs:
             echo "Please add your Anthropic API key to repository secrets"
             exit 1
           fi
-          echo "🤖 Installing Anthropic SDK..."
-          npm install anthropic@latest
+          echo "🤖 Installing Anthropic SDK and TypeScript tools..."
+          npm install @anthropic-ai/sdk@latest tsx @types/node
 
           echo "🧠 Running Anthropic to propose and apply changes..."
-          cat > apply_feature.mjs << 'EOF'
+          cat > apply_feature.ts << 'EOF'
           import fs from 'node:fs';
           import path from 'node:path';
-          import { Anthropic } from 'anthropic';
+          import Anthropic from '@anthropic-ai/sdk';
 
           const FEATURE = process.env.FEATURE_REQUEST || '';
           if (!FEATURE) {
@@ -210,7 +210,7 @@ jobs:
           });
           EOF
 
-          FEATURE_REQUEST='${{ github.event.inputs.request }}' node apply_feature.mjs || true
+          FEATURE_REQUEST='${{ github.event.inputs.request }}' npx tsx apply_feature.ts || true
           echo "✅ Anthropic SDK step completed"
 
       - name: Install new dependencies (if package.json changed)
