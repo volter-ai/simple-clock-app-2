@@ -1,0 +1,1 @@
+A simple clock app showing current time and date with a modern glassmorphic UI design. The clock updates every second using React hooks.
