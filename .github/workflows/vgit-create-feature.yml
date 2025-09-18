@@ -106,7 +106,7 @@ jobs:
           cat > apply_feature.mjs << 'EOF'
           import fs from 'node:fs';
           import path from 'node:path';
-          import Anthropic from 'anthropic';
+          import { Anthropic } from 'anthropic';
 
           const FEATURE = process.env.FEATURE_REQUEST || '';
           if (!FEATURE) {
