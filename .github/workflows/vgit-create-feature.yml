@@ -90,7 +90,7 @@ jobs:
             echo "⚠️ No package.json found, skipping dependency installation"
           fi
 
-      - name: Implement feature with Claude (SDK)
+    - name: Implement feature with Claude (SDK)
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
@@ -103,10 +103,10 @@ jobs:
           npm install anthropic@latest
 
           echo "🧠 Running Anthropic to propose and apply changes..."
-          cat > apply_feature.js << 'EOF'
-          const fs = require('fs');
-          const path = require('path');
-          const { Anthropic } = require('anthropic');
+      cat > apply_feature.mjs << 'EOF'
+      import fs from 'node:fs';
+      import path from 'node:path';
+      import { Anthropic } from 'anthropic';
 
           const FEATURE = process.env.FEATURE_REQUEST || '';
           if (!FEATURE) {
@@ -129,7 +129,7 @@ jobs:
             });
 
             const parts = msg.content || [];
-            const text = parts.map(p => p.text || p).join('\n');
+            const text = parts.map(p => (typeof p === 'string' ? p : p.text)).join('\n');
             const match = text.match(/```json\s*([\s\S]*?)```/i) || text.match(/\{[\s\S]*\}/);
             if (!match) {
               console.log('No JSON changes found. Writing plan to FEATURE_AI_PLAN.md');
@@ -161,7 +161,7 @@ jobs:
           });
           EOF
 
-          FEATURE_REQUEST='${{ github.event.inputs.request }}' node apply_feature.js || true
+          FEATURE_REQUEST='${{ github.event.inputs.request }}' node apply_feature.mjs || true
           echo "✅ Anthropic SDK step completed"
 
       - name: Verify changes
